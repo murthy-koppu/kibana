@@ -393,10 +393,13 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
 
         // Check for error and abort if found
         if(!(_.isUndefined(results.error))) {
-          $scope.panel.error = $scope.parse_error(results.error);
+          //$scope.panel.error = $scope.parse_error(results.error);
+        	console.log("Entered data for error response"+$scope.parse_error(results.error));
+          return;
         }
+
         // Make sure we're still on the same query/queries
-        else if($scope.query_id === query_id) {
+        if($scope.query_id === query_id) {
 
           var i = 0,
             time_series,
@@ -493,14 +496,14 @@ function (angular, app, $, _, kbn, moment, timeSeries, numeral) {
             // And slice to the right size
             $scope.annotations = $scope.annotations.slice(0,$scope.panel.annotate.size);
           }
-        }
 
-        // Tell the histogram directive to render.
-        $scope.$emit('render', data);
+          // Tell the histogram directive to render.
+          $scope.$emit('render', data);
 
-        // If we still have segments left, get them
-        if(segment < dashboard.indices.length-1) {
-          $scope.get_data(data,segment+1,query_id);
+          // If we still have segments left, get them
+          if(segment < dashboard.indices.length-1) {
+            $scope.get_data(data,segment+1,query_id);
+          }
         }
       });
     };

@@ -283,12 +283,10 @@ function (angular, app, _, kbn, moment) {
         sort.push($scope.ejs.Sort($scope.panel.timeField).order($scope.panel.sort[1]));
       }
 
-
       $scope.panelMeta.loading = true;
 
       _segment = _.isUndefined(segment) ? 0 : segment;
       $scope.segment = _segment;
-
       request = $scope.ejs.Request().indices(dashboard.indices[_segment]);
 
       $scope.panel.queries.ids = querySrv.idsByMode($scope.panel.queries);
@@ -329,7 +327,8 @@ function (angular, app, _, kbn, moment) {
 
         // Check for error and abort if found
         if(!(_.isUndefined(results.error))) {
-          $scope.panel.error = $scope.parse_error(results.error);
+          //$scope.panel.error = $scope.parse_error(results.error);
+        	console.log("Entered data for error response"+$scope.parse_error(results.error));
           return;
         }
 

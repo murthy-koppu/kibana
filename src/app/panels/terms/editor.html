@@ -13,6 +13,22 @@
         <label class="small">Field</label>
         <input type="text" class="input-small" bs-typeahead="fields.list" ng-model="panel.field" ng-change="set_refresh(true)">
       </div>
+      <div class="editor-option">
+        <label class="small">Field Header Name</label>
+        <input type="text" class="input-small" bs-typeahead="fields.list" ng-model="panel.fieldHeaderName" ng-change="set_refresh(true)">
+      </div>
+      <div class="editor-option">
+        <label class="small">Display Field</label>
+        <input type="text" class="input-small" bs-typeahead="fields.list" ng-model="panel.displayField" ng-change="set_refresh(true)">
+      </div>
+      <div class="editor-option">
+        <label class="small">Display Field Name</label>
+        <input type="text" class="input-small" bs-typeahead="fields.list" ng-model="panel.displayFieldName" ng-change="set_refresh(true)">
+      </div>
+      <div class="editor-option">
+        <label class="small">Processing Named Query</label>
+        <input type="text" class="input-small" bs-typeahead="fields.list" ng-model="panel.displayNamedQuery" ng-change="set_refresh(true)">
+      </div>
       <div class="editor-option" ng-show="panel.tmode == 'terms_stats'">
         <label class="small">Value field</label>
         <input type="text" class="input-small" bs-typeahead="fields.list" ng-model="panel.valuefield" ng-change="set_refresh(true)">

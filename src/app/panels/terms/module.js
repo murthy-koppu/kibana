@@ -23,6 +23,7 @@ function (angular, app, _, $, kbn) {
   app.useModule(module);
 
   module.controller('terms', function($scope, querySrv, dashboard, filterSrv, fields) {
+	
     $scope.panelMeta = {
       modals : [
         {
@@ -193,13 +194,18 @@ function (angular, app, _, $, kbn) {
 
       // Populate the inspector panel
       $scope.inspector = angular.toJson(JSON.parse(request.toString()),true);
-
       results = request.doSearch();
-
       // Populate scope when we have results
       results.then(function(results) {
+    	  debugger;
         $scope.panelMeta.loading = false;
-        if($scope.panel.tmode === 'terms') {
+        if(_.isUndefined(results) || !(_.isUndefined(results.error))) {
+	          //scope.panel.error = scope.parse_error(results.error);
+        	$scope.hits = 0;
+	        console.log("Entered data for error response");
+	          return;
+	        }
+        if($scope.panel.tmode === 'terms') {   
           $scope.hits = results.hits.total;
         }
 
@@ -248,161 +254,232 @@ function (angular, app, _, $, kbn) {
 
   });
 
-  module.directive('termsChart', function(querySrv) {
-    return {
-      restrict: 'A',
-      link: function(scope, elem) {
+  module.directive('termsChart', function(querySrv,filterSrv,dashboard) {
+	    return {
+	        restrict: 'A',
+	        link: function(scope, elem) {
 
-        // Receive render events
-        scope.$on('render',function(){
-          render_panel();
-        });
+	          // Receive render events
+	          scope.$on('render',function(){
+	            render_panel();
+	          });
 
-        // Re-render if the window is resized
-        angular.element(window).bind('resize', function(){
-          render_panel();
-        });
-
-        function build_results() {
-          var k = 0;
-          scope.data = [];
-          _.each(scope.results.facets.terms.terms, function(v) {
-            var slice;
-            if(scope.panel.tmode === 'terms') {
-              slice = { label : v.term, data : [[k,v.count]], actions: true};
-            }
-            if(scope.panel.tmode === 'terms_stats') {
-              slice = { label : v.term, data : [[k,v[scope.panel.tstat]]], actions: true};
-            }
-            scope.data.push(slice);
-            k = k + 1;
-          });
-
-          scope.data.push({label:'Missing field',
-            data:[[k,scope.results.facets.terms.missing]],meta:"missing",color:'#aaa',opacity:0});
-
-          if(scope.panel.tmode === 'terms') {
-            scope.data.push({label:'Other values',
-              data:[[k+1,scope.results.facets.terms.other]],meta:"other",color:'#444'});
-          }
-        }
-
-        // Function for rendering panel
-        function render_panel() {
-          var plot, chartData;
-
-          build_results();
-
-          // IE doesn't work without this
-          elem.css({height:scope.panel.height||scope.row.height});
-
-          // Make a clone we can operate on.
-          chartData = _.clone(scope.data);
-          chartData = scope.panel.missing ? chartData :
-            _.without(chartData,_.findWhere(chartData,{meta:'missing'}));
-          chartData = scope.panel.other ? chartData :
-          _.without(chartData,_.findWhere(chartData,{meta:'other'}));
-
-          // Populate element.
-          require(['jquery.flot.pie'], function(){
-            // Populate element
-            try {
-              // Add plot to scope so we can build out own legend
-              if(scope.panel.chart === 'bar') {
-                plot = $.plot(elem, chartData, {
-                  legend: { show: false },
-                  series: {
-                    lines:  { show: false, },
-                    bars:   { show: true,  fill: 1, barWidth: 0.8, horizontal: false },
-                    shadowSize: 1
-                  },
-                  yaxis: { show: true, min: 0, color: "#c8c8c8" },
-                  xaxis: { show: false },
-                  grid: {
-                    borderWidth: 0,
-                    borderColor: '#eee',
-                    color: "#eee",
-                    hoverable: true,
-                    clickable: true
-                  },
-                  colors: querySrv.colors
-                });
+	          // Re-render if the window is resized
+	          angular.element(window).bind('resize', function(){
+	            render_panel();
+	          });
+	          
+	          function fetchDisplayField(termInput,k,recordsArray,nonSyncPostCallCount) {
+	          	
+	          	scope.panelMeta.loading = true;
+	          	var _segment = 0;
+	          	var requestDispalyField = scope.ejs.Request().indices(dashboard.indices[_segment]);
+	          	querySrv.set(scope.panel.field+":"+termInput.term,"GenericUsingQuery");
+	          	var queries = querySrv.getQueryObjs(scope.panel.queries.ids);
+	          	_.each(queries,function(q){
+	          		if(q.alias === scope.panel.displayNamedQuery){
+	          			q.query=scope.panel.field+":"+termInput.term;
+	          		}
+	          	});
+	          	//queries[0].query=scope.panel.field+":"+termInput.term;
+	          	var boolQuery = scope.ejs.BoolQuery();
+	          	_.each(queries,function(q) {
+	          	        boolQuery = boolQuery.should(querySrv.toEjsObj(q));
+	          	      });
+      		  requestDispalyField = requestDispalyField.query(
+      	        scope.ejs.FilteredQuery(
+      	          boolQuery,
+      	          filterSrv.getBoolFilter(filterSrv.ids)
+      	        ))
+      	        .size(1);
+      			scope.inspector = angular.toJson(JSON.parse(requestDispalyField.toString()),true);
+      			
+      			requestDispalyField.doSearch().then(function(results) {
+      				debugger;
+	      	        scope.panelMeta.loading = false;
+	      	        var query_id = scope.query_id = new Date().getTime();
+	      	        
+	      	        // Check for error and abort if found
+	      	        if(!(_.isUndefined(results.error))) {
+	      	          //scope.panel.error = scope.parse_error(results.error);
+	      	        console.log("Entered data for error response");
+	      	          return;
+	      	        }
+	      	        var displayFieldOfScope = scope.panel.displayField;
+	      	        // Check that we're still on the same query, if not stop
+	      	        if(scope.query_id === query_id) {
+	
+	      	        	
+	      	        	recordsArray[k] = { label : termInput.term , data : [[k,termInput.count,results.hits.hits[0]._source[displayFieldOfScope]]], actions: true};
+	      	        	nonSyncPostCallCount[0] = nonSyncPostCallCount[0] +1;
+	      	        	if(nonSyncPostCallCount[0] === scope.results.facets.terms.terms.length){
+	      	        		_.each(recordsArray,function(slice){
+	      	        			scope.data.push(slice);
+	      	        		});
+	      	        	}	      	        	
+	      	        	return;
+	      	        } else {
+	      	          return;
+	      	        }
+      	      });        	
+          }          
+          
+          function build_results() {
+            
+            var k = 0;
+            scope.data = [];
+          	var totalRecords = scope.hits;
+          	var recordsArray = new Array
+          	var nonSyncPostCallCount = [0];
+          	if(!(_.isUndefined(scope.results)) && !(_.isUndefined(scope.results.facets)) && !(_.isUndefined(scope.results.facets.terms)) && !(_.isUndefined(scope.results.facets.terms.terms))){
+	            _.each(scope.results.facets.terms.terms, function(v) {
+	              var slice;
+	              if(scope.panel.tmode === 'terms') {
+	              	
+	              	var fieldDisplayData = v.term;
+	              	if(scope.panel.displayField != null && scope.panel.displayField != ""){
+	              		fieldDisplayData = fetchDisplayField(v,k,recordsArray,nonSyncPostCallCount);
+	              	}else{
+	              		slice = { label : fieldDisplayData, data : [[k,v.count]], actions: true};
+	              		scope.data.push(slice);
+	              	}            		
+	              	//
+	              }
+	              if(scope.panel.tmode === 'terms_stats') {
+	                slice = { label : v.term, data : [[k,v[scope.panel.tstat]]], actions: true};
+	                scope.data.push(slice);
+	              }
+	              
+	              
+	              k = k + 1;
+	            });
+	            scope.data.push({label:'Missing field',
+	                data:[[k,scope.results.facets.terms.missing]],meta:"missing",color:'#aaa',opacity:0});
+	
+              if(scope.panel.tmode === 'terms') {
+                scope.data.push({label:'Other values',
+                  data:[[k+1,scope.results.facets.terms.other]],meta:"other",color:'#444'});
               }
-              if(scope.panel.chart === 'pie') {
-                var labelFormat = function(label, series){
-                  return '<div ng-click="build_search(panel.field,\''+label+'\')'+
-                    ' "style="font-size:8pt;text-align:center;padding:2px;color:white;">'+
-                    label+'<br/>'+Math.round(series.percent)+'%</div>';
-                };
+          	}
+            
+          }
 
-                plot = $.plot(elem, chartData, {
-                  legend: { show: false },
-                  series: {
-                    pie: {
-                      innerRadius: scope.panel.donut ? 0.4 : 0,
-                      tilt: scope.panel.tilt ? 0.45 : 1,
-                      radius: 1,
-                      show: true,
-                      combine: {
-                        color: '#999',
-                        label: 'The Rest'
-                      },
-                      stroke: {
-                        width: 0
-                      },
-                      label: {
-                        show: scope.panel.labels,
-                        radius: 2/3,
-                        formatter: labelFormat,
-                        threshold: 0.1
+          // Function for rendering panel
+          function render_panel() {
+            var plot, chartData;
+
+            build_results();
+
+            // IE doesn't work without this
+            elem.css({height:scope.panel.height||scope.row.height});
+
+            // Make a clone we can operate on.
+            chartData = _.clone(scope.data);
+            chartData = scope.panel.missing ? chartData :
+              _.without(chartData,_.findWhere(chartData,{meta:'missing'}));
+            chartData = scope.panel.other ? chartData :
+            _.without(chartData,_.findWhere(chartData,{meta:'other'}));
+
+            // Populate element.
+            require(['jquery.flot.pie'], function(){
+              // Populate element
+              try {
+                // Add plot to scope so we can build out own legend
+                if(scope.panel.chart === 'bar') {
+                  plot = $.plot(elem, chartData, {
+                    legend: { show: false },
+                    series: {
+                      lines:  { show: false, },
+                      bars:   { show: true,  fill: 1, barWidth: 0.8, horizontal: false },
+                      shadowSize: 1
+                    },
+                    yaxis: { show: true, min: 0, color: "#c8c8c8" },
+                    xaxis: { show: false },
+                    grid: {
+                      borderWidth: 0,
+                      borderColor: '#eee',
+                      color: "#eee",
+                      hoverable: true,
+                      clickable: true
+                    },
+                    colors: querySrv.colors
+                  });
+                }
+                if(scope.panel.chart === 'pie') {
+                  var labelFormat = function(label, series){
+                    return '<div ng-click="build_search(panel.field,\''+label+'\')'+
+                      ' "style="font-size:8pt;text-align:center;padding:2px;color:white;">'+
+                      label+'<br/>'+Math.round(series.percent)+'%</div>';
+                  };
+
+                  plot = $.plot(elem, chartData, {
+                    legend: { show: false },
+                    series: {
+                      pie: {
+                        innerRadius: scope.panel.donut ? 0.4 : 0,
+                        tilt: scope.panel.tilt ? 0.45 : 1,
+                        radius: 1,
+                        show: true,
+                        combine: {
+                          color: '#999',
+                          label: 'The Rest'
+                        },
+                        stroke: {
+                          width: 0
+                        },
+                        label: {
+                          show: scope.panel.labels,
+                          radius: 2/3,
+                          formatter: labelFormat,
+                          threshold: 0.1
+                        }
                       }
+                    },
+                    //grid: { hoverable: true, clickable: true },
+                    grid:   { hoverable: true, clickable: true },
+                    colors: querySrv.colors
+                  });
+                }
+
+                // Populate legend
+                if(elem.is(":visible")){
+                  setTimeout(function(){
+                    scope.legend = plot.getData();
+                    if(!scope.$$phase) {
+                      scope.$apply();
                     }
-                  },
-                  //grid: { hoverable: true, clickable: true },
-                  grid:   { hoverable: true, clickable: true },
-                  colors: querySrv.colors
-                });
-              }
+                  });
+                }
 
-              // Populate legend
-              if(elem.is(":visible")){
-                setTimeout(function(){
-                  scope.legend = plot.getData();
-                  if(!scope.$$phase) {
-                    scope.$apply();
-                  }
-                });
+              } catch(e) {
+                elem.text(e);
               }
+            });
+          }
 
-            } catch(e) {
-              elem.text(e);
+          elem.bind("plotclick", function (event, pos, object) {
+            if(object) {
+              scope.build_search(scope.data[object.seriesIndex]);
             }
           });
+
+          var $tooltip = $('<div>');
+          elem.bind("plothover", function (event, pos, item) {
+            if (item) {
+              var value = scope.panel.chart === 'bar' ? item.datapoint[1] : item.datapoint[1][0][1];
+              $tooltip
+                .html(
+                  kbn.query_color_dot(item.series.color, 20) + ' ' +
+                  item.series.label + " (" + value.toFixed(0)+")"
+                )
+                .place_tt(pos.pageX, pos.pageY);
+            } else {
+              $tooltip.remove();
+            }
+          });
+
         }
-
-        elem.bind("plotclick", function (event, pos, object) {
-          if(object) {
-            scope.build_search(scope.data[object.seriesIndex]);
-          }
-        });
-
-        var $tooltip = $('<div>');
-        elem.bind("plothover", function (event, pos, item) {
-          if (item) {
-            var value = scope.panel.chart === 'bar' ? item.datapoint[1] : item.datapoint[1][0][1];
-            $tooltip
-              .html(
-                kbn.query_color_dot(item.series.color, 20) + ' ' +
-                item.series.label + " (" + value.toFixed(0)+")"
-              )
-              .place_tt(pos.pageX, pos.pageY);
-          } else {
-            $tooltip.remove();
-          }
-        });
-
-      }
-    };
-  });
+      };
+    });
 
 });
