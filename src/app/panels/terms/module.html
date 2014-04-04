@@ -50,12 +50,13 @@
 
   <table ng-style="panel.style" class="table table-striped table-condensed" ng-show="panel.chart == 'table'">
     <thead>
-      <th>{{ panel.fieldHeaderName }}</th> <th>{{ panel.tmode == 'terms_stats' ? panel.tstat : 'Count' }}</th> <th> {{ panel.displayFieldName }}</th><th>Action</th>
+      <th>{{ panel.fieldHeaderName }}</th> <th>{{ panel.termFieldHeadName == "" || panel.termFieldHeadName == null ? (panel.tmode == 'terms_stats' ? panel.tstat : 'Count') : panel.termFieldHeadName }}</th> <th> {{ panel.displayFieldName }}</th><th> {{ panel.displayFieldName2 }}</th><th>Action</th>
     </thead>
     <tr ng-repeat="term in data" ng-show="showMeta(term)">
       <td>{{term.label}}</td>
       <td>{{term.data[0][1]}}</td>
       <td>{{term.data[0][2]}}</td>
+      <td>{{term.data[0][3]}}</td>
       <td>
         <span ng-hide="term.meta == 'other'">
           <i class='icon-search pointer' ng-click="build_search(term)"></i>

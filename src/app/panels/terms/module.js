@@ -197,14 +197,13 @@ function (angular, app, _, $, kbn) {
       results = request.doSearch();
       // Populate scope when we have results
       results.then(function(results) {
-    	  debugger;
         $scope.panelMeta.loading = false;
         if(_.isUndefined(results) || !(_.isUndefined(results.error))) {
-	          //scope.panel.error = scope.parse_error(results.error);
-        	$scope.hits = 0;
-	        console.log("Entered data for error response");
-	          return;
-	        }
+          //scope.panel.error = scope.parse_error(results.error);
+    	  $scope.hits = 0;
+          console.log("Entered data for error response");
+          return;
+	    }
         if($scope.panel.tmode === 'terms') {   
           $scope.hits = results.hits.total;
         }
@@ -255,7 +254,7 @@ function (angular, app, _, $, kbn) {
   });
 
   module.directive('termsChart', function(querySrv,filterSrv,dashboard) {
-	    return {
+	      return {
 	        restrict: 'A',
 	        link: function(scope, elem) {
 
@@ -274,53 +273,66 @@ function (angular, app, _, $, kbn) {
 	          	scope.panelMeta.loading = true;
 	          	var _segment = 0;
 	          	var requestDispalyField = scope.ejs.Request().indices(dashboard.indices[_segment]);
-	          	querySrv.set(scope.panel.field+":"+termInput.term,"GenericUsingQuery");
 	          	var queries = querySrv.getQueryObjs(scope.panel.queries.ids);
-	          	_.each(queries,function(q){
-	          		if(q.alias === scope.panel.displayNamedQuery){
-	          			q.query=scope.panel.field+":"+termInput.term;
-	          		}
-	          	});
-	          	//queries[0].query=scope.panel.field+":"+termInput.term;
 	          	var boolQuery = scope.ejs.BoolQuery();
-	          	_.each(queries,function(q) {
-	          	        boolQuery = boolQuery.should(querySrv.toEjsObj(q));
-	          	      });
-      		  requestDispalyField = requestDispalyField.query(
-      	        scope.ejs.FilteredQuery(
-      	          boolQuery,
-      	          filterSrv.getBoolFilter(filterSrv.ids)
-      	        ))
-      	        .size(1);
+	          	boolQuery = boolQuery.must(ejs.QueryStringQuery(scope.panel.field+":"+termInput.term));
+	          	requestDispalyField = requestDispalyField.sort([scope.ejs.Sort("@timestamp").desc()]);	          	
+	          	if(scope.panel.displayNamedQuery != null && scope.panel.displayNamedQuery != ""){
+	          		boolQuery = boolQuery.must(ejs.QueryStringQuery("_type"+":"+scope.panel.displayNamedQuery));
+	          		requestDispalyField = requestDispalyField.query(
+	            	          scope.ejs.FilteredQuery(
+	            	            boolQuery
+	            	          ))
+	            	          .size(1);
+	          	}else{
+	          		requestDispalyField = requestDispalyField.query(
+	            	          scope.ejs.FilteredQuery(
+	            	            boolQuery,
+	            	            filterSrv.getBoolFilter(filterSrv.ids)
+	            	          ))
+	            	          .size(1);
+	          	}      		    
       			scope.inspector = angular.toJson(JSON.parse(requestDispalyField.toString()),true);
-      			
       			requestDispalyField.doSearch().then(function(results) {
-      				debugger;
-	      	        scope.panelMeta.loading = false;
-	      	        var query_id = scope.query_id = new Date().getTime();
-	      	        
-	      	        // Check for error and abort if found
-	      	        if(!(_.isUndefined(results.error))) {
-	      	          //scope.panel.error = scope.parse_error(results.error);
-	      	        console.log("Entered data for error response");
-	      	          return;
-	      	        }
-	      	        var displayFieldOfScope = scope.panel.displayField;
-	      	        // Check that we're still on the same query, if not stop
-	      	        if(scope.query_id === query_id) {
-	
-	      	        	
-	      	        	recordsArray[k] = { label : termInput.term , data : [[k,termInput.count,results.hits.hits[0]._source[displayFieldOfScope]]], actions: true};
-	      	        	nonSyncPostCallCount[0] = nonSyncPostCallCount[0] +1;
-	      	        	if(nonSyncPostCallCount[0] === scope.results.facets.terms.terms.length){
-	      	        		_.each(recordsArray,function(slice){
-	      	        			scope.data.push(slice);
-	      	        		});
-	      	        	}	      	        	
-	      	        	return;
-	      	        } else {
-	      	          return;
-	      	        }
+      	        scope.panelMeta.loading = false;
+      	        var query_id = scope.query_id = new Date().getTime();
+      	        
+      	        // Check for error and abort if found
+      	        if(!(_.isUndefined(results.error))) {
+      	          //scope.panel.error = scope.parse_error(results.error);
+      	          console.log("Entered data for error response");
+      	          return;
+      	        }
+      	        var displayFieldOfScope = scope.panel.displayField;
+      	        var displayFieldOfScope2 = scope.panel.displayField2;
+      	        // Check that we're still on the same query, if not stop
+      	        if(scope.query_id === query_id) {
+      	        	var termInputStatName = termInput.count;
+      	        	if(scope.panel.tmode === 'terms_stats'){
+      	        		termInputStatName = termInput[scope.panel.tstat]
+      	        	}
+      	        	if(scope.panel.newTermField != null && scope.panel.newTermField != ""){
+      	        		termInputStatName = results.hits.hits[0]._source[scope.panel.newTermField];
+      	        	}
+      	        	var resultDataOfTerm = "";
+      	        	var resultDataOfTerm2 = "";
+      	        	if(results.hits != null && results.hits.hits[0] != null && 
+      	        			results.hits.hits[0]._source != null && 
+      	        			(results.hits.hits[0]._source[displayFieldOfScope] != null || results.hits.hits[0]._source[displayFieldOfScope2] != null)){
+      	        		resultDataOfTerm =results.hits.hits[0]._source[displayFieldOfScope];
+      	        		resultDataOfTerm2 =results.hits.hits[0]._source[displayFieldOfScope2];
+      	        	}
+      	        	recordsArray[k] = { label : termInput.term , data : [[k,termInputStatName,resultDataOfTerm,resultDataOfTerm2]], actions: true};
+      	        	nonSyncPostCallCount[0] = nonSyncPostCallCount[0] +1;
+      	        	if(nonSyncPostCallCount[0] === scope.results.facets.terms.terms.length){
+      	        		_.each(recordsArray,function(slice){
+      	        			scope.data.push(slice);
+      	        		});
+      	        	}	      	        	
+      	        	return;
+      	        } else {
+      	          return;
+      	        }
       	      });        	
           }          
           
@@ -329,27 +341,31 @@ function (angular, app, _, $, kbn) {
             var k = 0;
             scope.data = [];
           	var totalRecords = scope.hits;
-          	var recordsArray = new Array
+          	var recordsArray = new Array;
           	var nonSyncPostCallCount = [0];
           	if(!(_.isUndefined(scope.results)) && !(_.isUndefined(scope.results.facets)) && !(_.isUndefined(scope.results.facets.terms)) && !(_.isUndefined(scope.results.facets.terms.terms))){
 	            _.each(scope.results.facets.terms.terms, function(v) {
 	              var slice;
-	              if(scope.panel.tmode === 'terms') {
+	              if(scope.panel.tmode === 'terms' || scope.panel.tmode === 'terms_stats') {
 	              	
 	              	var fieldDisplayData = v.term;
 	              	if(scope.panel.displayField != null && scope.panel.displayField != ""){
 	              		fieldDisplayData = fetchDisplayField(v,k,recordsArray,nonSyncPostCallCount);
 	              	}else{
-	              		slice = { label : fieldDisplayData, data : [[k,v.count]], actions: true};
-	              		scope.data.push(slice);
-	              	}            		
+	              		if(scope.panel.tmode != 'terms_stats'){
+	              			slice = { label : fieldDisplayData, data : [[k,v.count]], actions: true};
+		              		scope.data.push(slice);
+	              		}else{
+	              			slice = { label : v.term, data : [[k,v[scope.panel.tstat]]], actions: true};
+	     	                scope.data.push(slice);
+	              		}	              		
+	              	}           		
 	              	//
 	              }
-	              if(scope.panel.tmode === 'terms_stats') {
+	              /*if(scope.panel.tmode === 'terms_stats') {
 	                slice = { label : v.term, data : [[k,v[scope.panel.tstat]]], actions: true};
 	                scope.data.push(slice);
-	              }
-	              
+	              }*/            
 	              
 	              k = k + 1;
 	            });
